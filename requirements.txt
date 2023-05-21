@@ -1,2 +1,2 @@
-pandas
-discord
+pandas==2.0.1
+discord==2.2.3
