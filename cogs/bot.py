@@ -51,7 +51,7 @@ class Petbot(commands.Cog):
     async def status(self, ctx):
         pet = database.get_pet(ctx.author.id)
         if pet is None:
-            embed = discord.Embed(title='You don\'t have a pet!')
+            embed = discord.Embed(title='You don\'t have a pet!', color=0xffc0cb)
             await ctx.send(embed=embed)
             return
         database.update_pet(pet)
@@ -82,6 +82,7 @@ class Petbot(commands.Cog):
     @commands.command(name='feed')
     async def feed(self, ctx, *, name: str):
         player = database.get_player(ctx.author.id)
+        pet = database.get_pet(ctx.author.id)
 
         item_name_list = []
         for item in self.item_list:
@@ -91,16 +92,21 @@ class Petbot(commands.Cog):
             item_index = item_name_list.index(name)
             re_item = self.item_list[item_index]
 
-            if player.credits < re_item.cost:
-                embed = discord.Embed(title='You don\'t have enough credits to feed your pet!')
+            if pet is None:
+                embed = discord.Embed(title='You don\'t have a pet!', color=0xffc0cb)
                 await ctx.send(embed=embed)
                 return
 
-            pet = database.get_pet(ctx.author.id)
-            if pet is None:
-                embed = discord.Embed(title='You don\'t have a pet!')
+            if player.credits < re_item.cost:
+                embed = discord.Embed(title='You don\'t have enough credits to feed your pet!', color=0xffc0cb)
                 await ctx.send(embed=embed)
                 return
+            
+            if pet.hunger > 90:
+                embed = discord.Embed(title='Your pet is too full to eat more', color=0xffc0cb)
+                await ctx.send(embed=embed)
+                return
+        
             player.credits -= re_item.cost
             pet.feed(re_item)
             database.update_pet(pet)
@@ -110,14 +116,15 @@ class Petbot(commands.Cog):
 
             pet = database.get_pet(ctx.author.id)
             if pet is None:
-                await ctx.send('You don\'t have a pet!')
+                embed = discord.Embed(title='You don\'t have a pet!', color=0xffc0cb)
+                await ctx.send(embed=embed)
                 return
             database.update_pet(pet)
             embed = discord.Embed(title=f'{pet.name} - Status', description='Your pet\'s current status:', color=0xffc0cb)
 
             if pet.species == 'Manotham':
-                pic = discord.File(f'assets/pet/{pet.species}/feed.gif', filename='feed.gif')
-                embed.set_image(url='attachment://feed.gif')
+                pic = discord.File(f'assets/pet/{pet.species}/feed.jpg', filename='feed.jpg')
+                embed.set_image(url='attachment://feed.jpg')
             else:
                 pic = discord.File(f'assets/pet/{pet.species}/feed.jpg', filename='feed.jpg')
                 embed.set_image(url='attachment://feed.jpg')
@@ -137,7 +144,7 @@ class Petbot(commands.Cog):
             await ctx.send(file=pic, embed=embed)
 
         else:
-            embed = discord.Embed(title='Item not found!')
+            embed = discord.Embed(title='Item not found!', color=0xffc0cb)
             await ctx.send(embed=embed)
 
 
@@ -181,7 +188,7 @@ class Petbot(commands.Cog):
             await ctx.send(file=pic, embed=embed)
 
 
-    @commands.command(name='study')
+    @commands.command(name='work')
     async def earn(self, ctx, time: float):
         embed = discord.Embed(title=f'{ctx.author.name} has start study for {time} hours.', color=0xffc0cb)
         await ctx.send(embed=embed)
@@ -204,18 +211,24 @@ class Petbot(commands.Cog):
         player = database.get_player(ctx.author.id)
         pet = database.get_pet(ctx.author.id)
         if pet is None:
-            embed = discord.Embed(title='You don\'t have a pet!')
+            embed = discord.Embed(title='You don\'t have a pet!', color=0xffc0cb)
             await ctx.send(embed=embed)
             return
-
+        if pet.energy < 30:
+            embed = discord.Embed(title='Your pet is very tried and not ready to play with you.', color=0xffc0cb)
+            await ctx.send(embed=embed)
+            return
+        pet.update()
         player.credits -= 40
         pet.hunger -= 10
         pet.energy -= 25
         pet.mood += 10
+        pet.update()
         database.update_pet(pet)
         database.update_player_credits(ctx.author.id, player.credits)
 
-        if pet.mood == 100:
+        if pet.mood >= 100:
+            pet.mood = 100
             embed = discord.Embed(title='', color=0xffc0cb)
             if pet.species == 'Manotham':
                 pic = discord.File(f'assets/pet/{pet.species}/play.gif', filename='play.gif')
@@ -223,7 +236,6 @@ class Petbot(commands.Cog):
             else:
                 pic = discord.File(f'assets/pet/{pet.species}/play.jpg', filename='play.jpg')
                 embed.set_image(url='attachment://play.jpg')
-            await ctx.send(file=pic, embed=embed)
         elif pet.mood == 0:
             embed = discord.Embed(title='', color=0xffc0cb)
             if pet.species == 'Manotham':
@@ -232,7 +244,6 @@ class Petbot(commands.Cog):
             else:
                 pic = discord.File(f'assets/pet/{pet.species}/sad.jpg', filename='sad.jpg')
                 embed.set_image(url='attachment://sad.jpg')
-            await ctx.send(file=pic, embed=embed)
         else:
             embed = discord.Embed(title='', color=0xffc0cb)
             if pet.species == 'Manotham':
@@ -241,7 +252,20 @@ class Petbot(commands.Cog):
             else:
                 pic = discord.File(f'assets/pet/{pet.species}/defult.jpg', filename='defult.jpg')
                 embed.set_image(url='attachment://defult.jpg')
-            await ctx.send(file=pic, embed=embed)
+        
+        embed.add_field(name='Species', value=pet.species, inline=False)
+
+        hunger = round(pet.hunger, 2)
+        energy = round(pet.energy, 2)
+        mood = round(pet.mood, 2)
+        embed.add_field(name='Hunger', value=hunger, inline=True)
+        embed.add_field(name='Energy', value=energy, inline=True)
+        embed.add_field(name='Mood', value=mood, inline=True)
+
+        embed.add_field(name='Age', value=pet.age, inline=True)
+        birth = pet.birthdate.strftime('%x')
+        embed.add_field(name='Birthdate', value=birth, inline=True)
+        await ctx.send(file=pic, embed=embed)
 
 
     @commands.command(name='release')
@@ -249,7 +273,7 @@ class Petbot(commands.Cog):
         player = database.get_player(ctx.author.id)
         pet = database.get_pet(ctx.author.id)
         if pet is None:
-            embed = discord.Embed(title='You don\'t have a pet!')
+            embed = discord.Embed(title='You don\'t have a pet!', color=0xffc0cb    )
             await ctx.send(embed=embed)
             return
 
@@ -271,7 +295,6 @@ class Petbot(commands.Cog):
         embed.add_field(name='study', value='Study to earn credit.', inline=False)
         embed.add_field(name='release', value='Release your pet.', inline=False)
         await ctx.send(embed=embed)
-
 
 async def setup(client):
     await client.add_cog(Petbot(client))
