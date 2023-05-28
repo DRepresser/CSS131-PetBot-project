@@ -53,7 +53,7 @@ pip  install  -r  requirements.txt
 ![set up 7](assets/readme/7.png)
 
 ``` bash
-echo "DISCORD_TOKEN = 'INSERT_YOUR_TOKEN_HERE'" > .env
+echo DISCORD_TOKEN = 'INSERT_YOUR_TOKEN_HERE' > .env
 ```
 
 ### Starting the application
